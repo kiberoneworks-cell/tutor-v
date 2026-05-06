@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Крестики-нолики</title>
+    <style>
+        :root {
+            --cell-size: 120px;
+            --x-color: #e74c3c;
+            --o-color: #3498db;
+            --bg: #1a1a2e;
+            --board-bg: #16213e;
+            --cell-bg: #0f3460;
+            --cell-hover: #1a4a8a;
+            --text: #eee;
+            --accent: #e94560;
+            --win-glow: #2ecc71;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: var(--bg);
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Фоновый узор */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(233, 68, 96, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(52, 152, 219, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 20%, rgba(46, 204, 113, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .game-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            padding: 40px 50px;
+            background: var(--board-bg);
+            border-radius: 32px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+                0 0 120px rgba(233, 68, 96, 0.1);
+        }
+
+        /* Заголовок */
+        .title {
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, var(--x-color), #c0392b, var(--o-color), #2980b9);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: titleShimmer 4s ease-in-out infinite;
+        }
+
+        @keyframes titleShimmer {
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+            25% {
+                background-position: 100% 0%;
+            }
+            50% {
+                background-position: 100% 100%;
+            }
+            75% {
+                background-position: 0% 100%;
+            }
+        }
+
+        /* Статус */
+        .status {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 2px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+        }
+        .status .icon {
+            display: inline-block;
+            font-size: 1.6rem;
+            font-weight: 900;
+            width: 36px;
+            height: 36px;
+            line-height: 36px;
+            text-align: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        .status .icon.x-turn {
+            color: var(--x-color);
+            background: rgba(231, 76, 60, 0.15);
+            animation: pulseIcon 1s ease-in-out infinite;
+        }
+        .status .icon.o-turn {
+            color: var(--o-color);
+            background: rgba(52, 152, 219, 0.15);
+            animation: pulseIcon 1s ease-in-out infinite;
+        }
+        .status.win-x {
+            color: var(--x-color);
+            text-shadow: 0 0 20px rgba(231, 76, 60, 0.6);
+        }
+        .status.win-o {
+            color: var(--o-color);
+            text-shadow: 0 0 20px rgba(52, 152, 219, 0.6);
+        }
+        .status.draw {
+            color: #f39c12;
+            text-shadow: 0 0 20px rgba(243, 156, 18, 0.6);
+        }
+
+        @keyframes pulseIcon {
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
+            }
+            50% {
+                transform: scale(1.12);
+                box-shadow: 0 0 0 14px rgba(255, 255, 255, 0);
+            }
+        }
+
+        /* Игровое поле */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, var(--cell-size));
+            grid-template-rows: repeat(3, var(--cell-size));
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 8px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background: var(--cell-bg);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 3rem;
+            font-weight: 900;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            position: relative;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .cell:hover:not(.taken) {
+            background: var(--cell-hover);
+            transform: scale(1.03);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .cell:active:not(.taken) {
+            transform: scale(0.96);
+            transition: transform 0.1s ease;
+        }
+
+        .cell.taken {
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* X */
+        .cell.x {
+            color: var(--x-color);
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-shadow: 0 0 18px rgba(231, 76, 60, 0.5);
+        }
+
+        /* O */
+        .cell.o {
+            color: var(--o-color);
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-shadow: 0 0 18px rgba(52, 152, 219, 0.5);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.15);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Подсветка победной линии */
+        .cell.win-highlight {
+            animation: winGlow 0.6s ease-in-out infinite alternate;
+            background: rgba(46, 204, 113, 0.2) !important;
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.5), 0 0 0 3px rgba(46, 204, 113, 0.7);
+            border-radius: 14px;
+        }
+
+        @keyframes winGlow {
+            0% {
+                box-shadow: 0 0 20px rgba(46, 204, 113, 0.4), 0 0 0 3px rgba(46, 204, 113, 0.5);
+            }
+            100% {
+                box-shadow: 0 0 45px rgba(46, 204, 113, 0.9), 0 0 0 5px rgba(46, 204, 113, 0.9);
+            }
+        }
+
+        /* Кнопки */
+        .buttons {
+            display: flex;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-reset {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 8px 25px rgba(233, 68, 96, 0.35);
+        }
+        .btn-reset:hover {
+            background: #ff5a7a;
+            transform: translateY(-3px);
+            box-shadow: 0 14px 35px rgba(233, 68, 96, 0.5);
+        }
+        .btn-reset:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        .btn-undo {
+            background: transparent;
+            color: #aaa;
+            border: 2px solid #555;
+            box-shadow: none;
+        }
+        .btn-undo:hover {
+            color: #fff;
+            border-color: #888;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.08);
+        }
+        .btn-undo:active {
+            transform: translateY(0) scale(0.96);
+        }
+        .btn-undo:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Счёт */
+        .scoreboard {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        .score-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-weight: 700;
+            color: #aaa;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            min-width: 60px;
+        }
+        .score-value {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #fff;
+        }
+        .score-x .score-value {
+            color: var(--x-color);
+        }
+        .score-o .score-value {
+            color: var(--o-color);
+        }
+        .score-draw .score-value {
+            color: #f39c12;
+        }
+        .score-divider {
+            width: 1px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Адаптивность */
+        @media (max-width: 500px) {
+            :root {
+                --cell-size: 90px;
+            }
+            .game-container {
+                padding: 24px 18px;
+                gap: 20px;
+                border-radius: 24px;
+            }
+            .title {
+                font-size: 1.6rem;
+                letter-spacing: 3px;
+            }
+            .cell {
+                font-size: 2.2rem;
+                border-radius: 10px;
+            }
+            .board {
+                gap: 5px;
+                padding: 5px;
+                border-radius: 14px;
+            }
+            .status {
+                font-size: 1rem;
+            }
+            .btn {
+                padding: 12px 22px;
+                font-size: 0.85rem;
+            }
+            .scoreboard {
+                gap: 16px;
+            }
+            .score-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <!-- Заголовок -->
+        <div class="title">Крестики-Нолики</div>
+
+        <!-- Статус игры -->
+        <div class="status" id="status">
+            <span class="icon x-turn">✕</span>
+            <span>Ходят крестики</span>
+        </div>
+
+        <!-- Игровое поле -->
+        <div class="board" id="board">
+            <button class="cell" data-index="0"></button>
+            <button class="cell" data-index="1"></button>
+            <button class="cell" data-index="2"></button>
+            <button class="cell" data-index="3"></button>
+            <button class="cell" data-index="4"></button>
+            <button class="cell" data-index="5"></button>
+            <button class="cell" data-index="6"></button>
+            <button class="cell" data-index="7"></button>
+            <button class="cell" data-index="8"></button>
+        </div>
+
+        <!-- Счёт -->
+        <div class="scoreboard">
+            <div class="score-item score-x">
+                <span>Крестики</span>
+                <span class="score-value" id="scoreX">0</span>
+            </div>
+            <div class="score-divider"></div>
+            <div class="score-item score-draw">
+                <span>Ничьи</span>
+                <span class="score-value" id="scoreDraw">0</span>
+            </div>
+            <div class="score-divider"></div>
+            <div class="score-item score-o">
+                <span>Нолики</span>
+                <span class="score-value" id="scoreO">0</span>
+            </div>
+        </div>
+
+        <!-- Кнопки -->
+        <div class="buttons">
+            <button class="btn btn-undo" id="btnUndo" disabled title="Отменить последний ход">↩ Отменить</button>
+            <button class="btn btn-reset" id="btnReset">🔄 Новая игра</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ---- DOM-элементы ----
+            const boardEl = document.getElementById('board');
+            const cellEls = boardEl.querySelectorAll('.cell');
+            const statusEl = document.getElementById('status');
+            const btnUndo = document.getElementById('btnUndo');
+            const btnReset = document.getElementById('btnReset');
+            const scoreXEl = document.getElementById('scoreX');
+            const scoreOEl = document.getElementById('scoreO');
+            const scoreDrawEl = document.getElementById('scoreDraw');
+
+            // ---- Состояние игры ----
+            let board = Array(9).fill(null); // 'X' | 'O' | null
+            let currentPlayer = 'X'; // 'X' или 'O'
+            let gameOver = false;
+            let winner = null; // 'X' | 'O' | 'draw' | null
+            let winningLine = null; // [индексы] | null
+            let moveHistory = []; // [{index, player, prevBoardState}]
+            let scores = { X: 0, O: 0, draw: 0 };
+
+            // Все выигрышные комбинации (индексы)
+            const WIN_COMBOS = [
+                [0, 1, 2],
+                [3, 4, 5],
+                [6, 7, 8], // горизонтали
+                [0, 3, 6],
+                [1, 4, 7],
+                [2, 5, 8], // вертикали
+                [0, 4, 8],
+                [2, 4, 6], // диагонали
+            ];
+
+            // ---- Функции ----
+
+            /** Проверить, есть ли победитель или ничья */
+            function checkWinner(boardState) {
+                for (const combo of WIN_COMBOS) {
+                    const [a, b, c] = combo;
+                    if (
+                        boardState[a] &&
+                        boardState[a] === boardState[b] &&
+                        boardState[a] === boardState[c]
+                    ) {
+                        return { winner: boardState[a], line: combo };
+                    }
+                }
+                // Проверка на ничью
+                if (boardState.every(cell => cell !== null)) {
+                    return { winner: 'draw', line: null };
+                }
+                return null; // игра продолжается
+            }
+
+            /** Обновить UI: клетки, статус, кнопку отмены */
+            function renderBoard() {
+                cellEls.forEach((cell, i) => {
+                    // Убираем все классы
+                    cell.classList.remove('x', 'o', 'taken', 'win-highlight');
+                    cell.textContent = '';
+                    if (board[i] === 'X') {
+                        cell.classList.add('x', 'taken');
+                        cell.textContent = '✕';
+                    } else if (board[i] === 'O') {
+                        cell.classList.add('o', 'taken');
+                        cell.textContent = '◯';
+                    }
+                });
+
+                // Подсветка победной линии
+                if (winningLine) {
+                    winningLine.forEach(i => {
+                        cellEls[i].classList.add('win-highlight');
+                    });
+                }
+
+                // Статус
+                updateStatus();
+
+                // Кнопка отмены
+                btnUndo.disabled = moveHistory.length === 0 || (gameOver && !winner);
+                // Если игра завершена победой — отмена всё ещё доступна (откат до хода перед победой)
+                if (gameOver && winner && moveHistory.length > 0) {
+                    btnUndo.disabled = false;
+                }
+                if (gameOver && winner === 'draw' && moveHistory.length === 0) {
+                    btnUndo.disabled = true;
+                }
+                // Если игра не завершена и есть ходы — можно отменить
+                if (!gameOver && moveHistory.length > 0) {
+                    btnUndo.disabled = false;
+                }
+            }
+
+            /** Обновить блок статуса */
+            function updateStatus() {
+                const iconSpan = statusEl.querySelector('.icon');
+                const textSpan = statusEl.querySelector('span:last-child');
+
+                // Сбрасываем классы статуса
+                statusEl.classList.remove('win-x', 'win-o', 'draw');
+                iconSpan.classList.remove('x-turn', 'o-turn');
+
+                if (gameOver && winner === 'X') {
+                    iconSpan.className = 'icon';
+                    iconSpan.textContent = '✕';
+                    iconSpan.style.color = 'var(--x-color)';
+                    textSpan.textContent = 'Победили крестики! 🎉';
+                    statusEl.classList.add('win-x');
+                } else if (gameOver && winner === 'O') {
+                    iconSpan.className = 'icon';
+                    iconSpan.textContent = '◯';
+                    iconSpan.style.color = 'var(--o-color)';
+                    textSpan.textContent = 'Победили нолики! 🎉';
+                    statusEl.classList.add('win-o');
+                } else if (gameOver && winner === 'draw') {
+                    iconSpan.className = 'icon';
+                    iconSpan.textContent = '🤝';
+                    iconSpan.style.color = '#f39c12';
+                    textSpan.textContent = 'Ничья!';
+                    statusEl.classList.add('draw');
+                } else {
+                    // Игра идёт
+                    iconSpan.className = 'icon';
+                    if (currentPlayer === 'X') {
+                        iconSpan.classList.add('x-turn');
+                        iconSpan.textContent = '✕';
+                        iconSpan.style.color = '';
+                        textSpan.textContent = 'Ходят крестики';
+                    } else {
+                        iconSpan.classList.add('o-turn');
+                        iconSpan.textContent = '◯';
+                        iconSpan.style.color = '';
+                        textSpan.textContent = 'Ходят нолики';
+                    }
+                }
+            }
+
+            /** Обновить счёт на экране */
+            function updateScoreDisplay() {
+                scoreXEl.textContent = scores.X;
+                scoreOEl.textContent = scores.O;
+                scoreDrawEl.textContent = scores.draw;
+            }
+
+            /** Сделать ход */
+            function makeMove(index) {
+                if (board[index] !== null) return; // клетка занята
+                if (gameOver) return; // игра завершена (но можно сбросить)
+
+                // Сохраняем состояние до хода (для отмены)
+                const prevBoardState = [...board];
+                moveHistory.push({
+                    index,
+                    player: currentPlayer,
+                    prevBoardState,
+                });
+
+                // Совершаем ход
+                board[index] = currentPlayer;
+
+                // Проверяем результат
+                const result = checkWinner(board);
+                if (result) {
+                    gameOver = true;
+                    winner = result.winner;
+                    winningLine = result.line;
+                    if (winner === 'draw') {
+                        scores.draw++;
+                    } else {
+                        scores[winner]++;
+                    }
+                    updateScoreDisplay();
+                } else {
+                    // Переключаем игрока
+                    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                }
+
+                renderBoard();
+            }
+
+            /** Отменить последний ход */
+            function undoMove() {
+                if (moveHistory.length === 0) return;
+
+                // Если игра была завершена победой — нужно откатить очки
+                if (gameOver && winner && winner !== 'draw') {
+                    scores[winner]--;
+                    updateScoreDisplay();
+                }
+                if (gameOver && winner === 'draw') {
+                    scores.draw--;
+                    updateScoreDisplay();
+                }
+
+                // Восстанавливаем предыдущее состояние
+                const lastMove = moveHistory.pop();
+                board = lastMove.prevBoardState;
+                currentPlayer = lastMove.player;
+                gameOver = false;
+                winner = null;
+                winningLine = null;
+
+                renderBoard();
+            }
+
+            /** Полный сброс игры (с сохранением счёта) */
+            function resetGame() {
+                board = Array(9).fill(null);
+                currentPlayer = 'X';
+                gameOver = false;
+                winner = null;
+                winningLine = null;
+                moveHistory = [];
+                renderBoard();
+            }
+
+            /** Полный сброс всего, включая счёт */
+            function fullReset() {
+                scores = { X: 0, O: 0, draw: 0 };
+                updateScoreDisplay();
+                resetGame();
+            }
+
+            // ---- Обработчики событий ----
+            boardEl.addEventListener('click', (e) => {
+                const cell = e.target.closest('.cell');
+                if (!cell) return;
+                const index = parseInt(cell.getAttribute('data-index'), 10);
+                if (isNaN(index)) return;
+                makeMove(index);
+            });
+
+            // Поддержка клавиатуры для доступности
+            boardEl.addEventListener('keydown', (e) => {
+                const cell = e.target.closest('.cell');
+                if (!cell) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    const index = parseInt(cell.getAttribute('data-index'), 10);
+                    if (!isNaN(index)) makeMove(index);
+                }
+            });
+
+            btnUndo.addEventListener('click', undoMove);
+
+            btnReset.addEventListener('click', fullReset);
+
+            // Горячие клавиши
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+Z — отмена хода
+                if (e.ctrlKey && e.key === 'z') {
+                    e.preventDefault();
+                    undoMove();
+                }
+                // R — новая игра (если не в фокусе на поле ввода)
+                if (e.key === 'r' && !e.ctrlKey && document.activeElement === document.body) {
+                    e.preventDefault();
+                    fullReset();
+                }
+            });
+
+            // ---- Инициализация ----
+            renderBoard();
+            updateScoreDisplay();
+        })();
+    </script>
+</body>
+</html>
